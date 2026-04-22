@@ -22,7 +22,7 @@ Lab (HHRCM), NCRA-NEDUET.
 
 ## Problem It Solves
 
-Industrial facilities have no real-time visibility into 
+Industrial facilities in Pakistan have majorly lack real-time visibility into 
 equipment-level energy consumption. Maintenance teams rely on 
 manual meter readings and reactive fault response — leading to 
 energy waste, unplanned downtime, and zero audit trail.
@@ -99,11 +99,13 @@ equipment-level cloud visibility across multiple production lines
 
 <img width="779" height="749" alt="EIOT-deployment-2" src="https://github.com/user-attachments/assets/9efa2d3d-5f91-4aae-bd5b-c1782554026b" />
 
-<img width="2556" height="1179" alt="EIOT-dashboard" src="https://github.com/user-attachments/assets/3776ada5-f801-4262-a64e-ecafb0b72c03" />
+<img width="1848" height="862" alt="image" src="https://github.com/user-attachments/assets/d41c6c28-a6d7-44aa-8f58-8a5b89a74292" />
+
+<img width="660" height="823" alt="image" src="https://github.com/user-attachments/assets/11c480af-a5d3-4750-9be0-38c01370ad85" />
+
+<img width="1842" height="819" alt="image" src="https://github.com/user-attachments/assets/0d1b47ee-0d82-4a93-b3ad-a19198084a8d" />
 
 ---
-
-![Uploading NED-EIoT-Hardware.jpeg…]()
 
 
 ## Patent & IP
@@ -111,6 +113,9 @@ equipment-level cloud visibility across multiple production lines
 **Patent filed with IPO Pakistan**  
 Application No. 967/2025  
 Status: Under Review  
+
+<img width="1006" height="719" alt="Patent Receipt-EIoT-967-2025" src="https://github.com/user-attachments/assets/eb02beaf-3a0f-4799-a93e-412b169843e4" />
+
 
 > Note: Firmware source code and PCB design files are 
 > proprietary and protected under the filed patent. 
