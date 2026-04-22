@@ -22,8 +22,7 @@ Lab (HHRCM), NCRA-NEDUET.
 
 ## Problem It Solves
 
-Industrial facilities in Pakistan have majorly lack real-time visibility into 
-equipment-level energy consumption. Maintenance teams rely on 
+Industrial facilities largely lack real-time visibility into equipment-level energy consumption. Maintenance teams rely on 
 manual meter readings and reactive fault response — leading to 
 energy waste, unplanned downtime, and zero audit trail.
 
