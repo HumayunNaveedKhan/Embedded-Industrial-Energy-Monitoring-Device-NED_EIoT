@@ -32,12 +32,8 @@ cloud-connected, real-time energy intelligence.
 ---
 
 ## System Architecture
-[CT Sensors] → [RS-485 / Modbus RTU] → [ESP32 Gateway]
-↓
-[MQTT Broker] → [Google Cloud (GCP)] → [Power BI Dashboard]
-↓
-[Google Sheets] → [Automated Alerts via IFTTT/Zapier]
 
+<img width="1536" height="1024" alt="NED-EIOT" src="https://github.com/user-attachments/assets/e99e7453-3be3-4c6d-aae9-0d706bf2c510" />
 ---
 
 ## Key Features
@@ -89,8 +85,6 @@ cloud-connected, real-time energy intelligence.
 **Outcome:** Replaced manual energy audits with real-time 
 equipment-level cloud visibility across multiple production lines
 
-
-<img width="1536" height="1024" alt="NED-EIOT" src="https://github.com/user-attachments/assets/e99e7453-3be3-4c6d-aae9-0d706bf2c510" />
 
 <img width="1280" height="862" alt="NED-EIoT-Hardware" src="https://github.com/user-attachments/assets/27598ab1-fa13-4170-a3a5-2decde0a8569" />
 
