@@ -152,7 +152,7 @@ DOI: [10.3390/engproc2023032009](https://doi.org/10.3390/engproc2023032009)
 
 **Humayun Khan**  
 Team Lead, HHRCM Lab, NCRA-NEDUET  
-Co-Founder, Haptronica & RobAutoStem (BIC NEDUET, NIC Karachi-Cohort 12)  
+Co-Founder, Haptronica (incubated in BIC NEDUET) & RobAutoStem (incubated in BIC NEDUET, NIC Karachi-Cohort 12)  
 
 📧 humayunnaveedkhan@gmail.com  
 🔗 [LinkedIn](https://linkedin.com/in/humayunnaveedkhan)  
