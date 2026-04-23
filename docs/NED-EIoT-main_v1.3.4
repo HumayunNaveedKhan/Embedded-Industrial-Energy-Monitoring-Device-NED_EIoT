@@ -1,0 +1,543 @@
+#include <ESP8266WiFi.h>
+#include <WiFiClientSecure.h>
+#include <EEPROM.h>
+#include <ESP8266WebServer.h>
+#include <EmonLib.h>  // EmonLib for energy monitoring
+
+// EmonLib Instance
+EnergyMonitor emon1;
+
+// Web Server Instance
+ESP8266WebServer server(80);
+
+// WiFi Client Instance
+WiFiClientSecure client;
+
+// EEPROM Configuration
+#define EEPROM_SIZE 120  // For SSID, password, calibrationFactor, sheetInterval, calibration points, and voltage
+char storedSSID[32] = "";
+char storedPassword[64] = "";
+float calibrationFactor = 1.0;  // Adjusted for new CT, fine-tuned via calibration
+unsigned long sheetInterval = 10000;  // Default 10 seconds
+float calibCurrent = 0.0;  // Single known current (high)
+float calibVct = 0.0; // Measured Vct at the calibration point
+float selectedVoltage = 220.0;  // Default voltage
+
+// Wi-Fi Credentials
+const char* defaultSSID = "CoatsEmployee1";
+const char* defaultPassword = "Coats@1234";
+
+// Google Sheets Configuration
+const char* host = "script.google.com";
+const int httpsPort = 443;
+const String GAS_ID = "AKfycbz4LYygRRuGgKTSxwGOLC8odN01S2gHexU7GlK4HMq8TGUtwFgLIj55UfOVmOe2Z3wZ"; // Replace with your Google Apps Script ID
+//https://docs.google.com/spreadsheets/d/1RNwZ5ZJtg5O_0CW5VqFAfYElLLl7QdNPKOW_1zgFLh4/edit?usp=sharing
+
+// ADC and Current Sensor Configuration
+const int SENSOR_PIN = A0;  // ESP8266 ADC pin (A0)
+const float MAX_ADC = 1023.0;  // ESP8266 10-bit ADC
+const float VOLTAGE_REF = 3.3;  // NodeMCU ADC reference (0–3.3V)
+const float VCT_NOISE_THRESHOLD = 0.005;  // Noise threshold for Vct (V)
+const int SAMPLES = 4000;  // Samples for calcIrms
+float calibration = 100.0;  // For 100A:1V CT with 100 ohms burden
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////100A1V
+// IIR Filter Configuration
+float filteredCurrent = 0.0;  // Initial filtered current
+const float alpha = 0.4;  // IIR smoothing factor (tuned for responsiveness)
+bool useFilter = false;  // Flag to enable filter post-calibration
+
+// Reset Button Configuration
+const int RESET_BUTTON_PIN = 4;  // GPIO4 (D2 on NodeMCU)
+const unsigned long RESET_PRESS_DURATION = 5000;  // 5 seconds for long press
+unsigned long resetButtonPressStart = 0;
+bool resetButtonPressed = false;
+
+// Global variables
+bool wifiConnected = false;
+bool apMode = false;
+float globalCurrent = 0.0;
+float globalPower = 0.0;
+float globalVadc = 0.0;
+float globalVct = 0.0;
+bool calibrationMode = false;
+bool webCalibration = false;
+bool useScientificNotation = false;
+unsigned long lastMeasurementTime = 0;
+const unsigned long measurementInterval = 5000; // 5 seconds
+unsigned long lastSheetUpdate = 0;
+unsigned long lastWiFiAttempt = 0;
+const unsigned long wifiRetryInterval = 30000; // 30 seconds
+
+// Function declarations
+void saveWiFiCredentials();
+void loadWiFiCredentials();
+void saveCalibrationFactor();
+void loadCalibrationFactor();
+void saveSheetInterval();
+void loadSheetInterval();
+void saveCalibrationPoint();
+void loadCalibrationPoint();
+void saveSelectedVoltage();
+void loadSelectedVoltage();
+void handleResetButton();
+void eraseEEPROM();
+void measureAndSendData();
+void calibrateSensor(float knownCurrent);
+float calculateVoltageOffset();
+void sendDataToGoogleSheets(float rmsCurrent, float power, float voltage);
+void connectToWiFi();
+void startAccessPoint();
+void startWebServer();
+void handlePortal();
+
+void setup() {
+  Serial.begin(115200);
+  Serial.println("Booting...");
+
+  // Initialize reset button pin
+  pinMode(RESET_BUTTON_PIN, INPUT_PULLUP);
+
+  EEPROM.begin(EEPROM_SIZE);
+  loadWiFiCredentials();
+  loadCalibrationFactor();
+  loadSheetInterval();
+  loadCalibrationPoint();
+  loadSelectedVoltage();
+
+  // Initialize EmonLib
+  emon1.current(SENSOR_PIN, calibration); // CT on A0, calibration for 100A:1V CT
+
+  // Validate credentials
+  if (strlen(storedSSID) == 0) {
+    strncpy(storedSSID, defaultSSID, sizeof(storedSSID));
+    strncpy(storedPassword, defaultPassword, sizeof(storedPassword));
+    saveWiFiCredentials();
+  }
+
+  // Attempt WiFi connection for 10 seconds
+  connectToWiFi();
+  // Delay initial measurement to stabilize CT
+  delay(2000);
+  measureAndSendData();
+}
+
+void loop() {
+  unsigned long currentTime = millis();
+
+  // Handle reset button
+  handleResetButton();
+
+  // Handle web server clients
+  server.handleClient();
+
+  // Handle serial input for calibration or display mode
+  if (Serial.available()) {
+    char input = Serial.read();
+    if (input == 'c' || input == 'C') {
+      calibrationMode = true;
+      webCalibration = false;
+      Serial.println("Calibration Mode (Serial)");
+      calibrateSensor(0.0);
+    } else if (input == 'e' || input == 'E') {
+      useScientificNotation = !useScientificNotation;
+      Serial.println(useScientificNotation ? "Vct: scientific" : "Vct: fixed-point");
+    }
+  }
+
+  // Retry WiFi if not connected and not in AP mode
+  if (!wifiConnected && !apMode && currentTime - lastWiFiAttempt >= wifiRetryInterval) {
+    connectToWiFi();
+    lastWiFiAttempt = currentTime;
+  }
+
+  // Measure and send data every 5 seconds
+  if (currentTime - lastMeasurementTime >= measurementInterval) {
+    measureAndSendData();
+    lastMeasurementTime = currentTime;
+  }
+
+  // Send data to Google Sheets if WiFi connected and interval elapsed
+  if (currentTime - lastSheetUpdate >= sheetInterval && !calibrationMode && wifiConnected) {
+    sendDataToGoogleSheets(globalCurrent, globalPower, selectedVoltage);
+    lastSheetUpdate = currentTime;
+  }
+}
+
+void handleResetButton() {
+  if (digitalRead(RESET_BUTTON_PIN) == LOW) {
+    if (!resetButtonPressed) {
+      resetButtonPressed = true;
+      resetButtonPressStart = millis();
+    }
+    if (millis() - resetButtonPressStart >= RESET_PRESS_DURATION) {
+      Serial.println("Reset button long press detected. Erasing EEPROM and entering AP mode...");
+      eraseEEPROM();
+      startAccessPoint();
+      resetButtonPressed = false; // Prevent repeated resets
+    }
+  } else {
+    resetButtonPressed = false;
+  }
+}
+
+void eraseEEPROM() {
+  for (int i = 0; i < EEPROM_SIZE; i++) {
+    EEPROM.write(i, 0);
+  }
+  EEPROM.commit();
+  Serial.println("EEPROM erased");
+  // Reset credentials and state
+  strncpy(storedSSID, defaultSSID, sizeof(storedSSID));
+  strncpy(storedPassword, defaultPassword, sizeof(storedPassword));
+  calibrationFactor = 1.0;
+  sheetInterval = 10000;
+  calibCurrent = 0.0;
+  calibVct = 0.0;
+  selectedVoltage = 220.0;
+  filteredCurrent = 0.0; // Reset filter state
+  useFilter = false; // Reset filter flag
+  saveWiFiCredentials();
+  saveCalibrationFactor();
+  saveSheetInterval();
+  saveCalibrationPoint();
+  saveSelectedVoltage();
+}
+
+void measureAndSendData() {
+  // Perform measurement with EmonLib
+  double Irms = emon1.calcIrms(SAMPLES); // Calculate RMS current with 4000 samples
+  float Vct = Irms / calibration; // Calculate Vct (Vrms)
+  float rmsCurrent = (Vct < VCT_NOISE_THRESHOLD) ? 0.0 : Irms * calibrationFactor; // Apply noise threshold
+  // Apply IIR filter only if calibration has been performed
+  if (useFilter) {
+    filteredCurrent = alpha * rmsCurrent + (1 - alpha) * filteredCurrent;
+  } else {
+    filteredCurrent = rmsCurrent; // Use raw current before calibration
+  }
+  float power = filteredCurrent * selectedVoltage; // Power using filtered or raw current
+
+  Serial.print("Current: ");
+  Serial.print(filteredCurrent, 3); // Filtered or raw current
+  Serial.print(" A, Power: ");
+  Serial.print(power, 3); // Power
+  Serial.print(" W, Vct: ");
+  if (useScientificNotation) {
+    Serial.print(Vct, 6);
+  } else {
+    Serial.print(Vct, 3);
+  }
+  Serial.println(" V");
+  if (Vct < VCT_NOISE_THRESHOLD) {
+    Serial.print(" (noise)");
+  }
+  Serial.println();
+
+  globalVadc = calculateVoltageOffset(); // Calculate ADC voltage
+  globalVct = Vct;
+  globalCurrent = filteredCurrent; // Use filtered or raw current
+  globalPower = power;
+}
+
+void calibrateSensor(float knownCurrent) {
+  if (knownCurrent <= 0 && !webCalibration) {
+    Serial.println("Enter current (A):");
+    while (!Serial.available()) {}
+    knownCurrent = Serial.parseFloat();
+    Serial.readString();
+  }
+
+  if (knownCurrent <= 0) {
+    Serial.println("Calibration failed: Invalid current");
+    calibrationMode = false;
+    webCalibration = false;
+    return;
+  }
+
+  // Use measurement logic
+  double Irms = emon1.calcIrms(SAMPLES); // Calculate RMS current with 4000 samples
+  float Vct = Irms / calibration;
+  if (Vct < VCT_NOISE_THRESHOLD) {
+    Serial.println("Calibration failed: Vct too low. Check CT");
+    calibrationMode = false;
+    webCalibration = false;
+    return;
+  }
+
+  float theoreticalCurrent = Irms;
+  if (theoreticalCurrent == 0.0) {
+    Serial.println("Calibration failed: Measured current is zero");
+    calibrationMode = false;
+    webCalibration = false;
+    return;
+  }
+
+  // Save single calibration point
+  calibCurrent = knownCurrent;
+  calibVct = Vct;
+  saveCalibrationPoint();
+  Serial.println("Calibration point saved: Current = " + String(calibCurrent, 3) + " A, Vct = " + String(calibVct, 3) + " V");
+
+  // Update calibration factor
+  calibrationFactor = calibCurrent / theoreticalCurrent;
+  saveCalibrationFactor();
+  Serial.println("Calibration factor updated: " + String(calibrationFactor, 6));
+  useFilter = true; // Enable IIR filter for next readings
+  filteredCurrent = calibCurrent; // Initialize filter with known current
+
+  calibrationMode = false;
+  webCalibration = false;
+}
+
+float calculateVoltageOffset() {
+  float voltageSum = 0.0;
+  for (int i = 0; i < SAMPLES; i++) {
+    int rawValue = analogRead(SENSOR_PIN);
+    voltageSum += (rawValue / MAX_ADC) * VOLTAGE_REF;
+    delayMicroseconds(100);
+  }
+  return voltageSum / SAMPLES; // Average voltage offset
+}
+
+void sendDataToGoogleSheets(float rmsCurrent, float power, float voltage) {
+  const int maxRetries = 3;
+  int retryCount = 0;
+  bool connected = false;
+
+  client.setTimeout(5000); // Set 5-second timeout
+  while (retryCount < maxRetries && !connected) {
+    if (client.connect(host, httpsPort)) {
+      connected = true;
+    } else {
+      retryCount++;
+      Serial.println("Connection to Google Sheets failed, retry " + String(retryCount) + "/" + String(maxRetries));
+      delay(1000); // Wait 1 second before retry
+    }
+  }
+
+  if (!connected) {
+    Serial.println("Failed to connect to Google Sheets after " + String(maxRetries) + " retries");
+    return;
+  }
+
+  String url = "/macros/s/" + GAS_ID + "/exec?current=" + String(rmsCurrent, 2) + "&voltage=" + String(voltage, 0) + "&power=" + String(power, 2) + "&interval=" + String(sheetInterval / 1000);
+  client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+               "Host: " + host + "\r\n" +
+               "User-Agent: ESP8266\r\n" +
+               "Connection: close\r\n\r\n");
+
+  unsigned long startTime = millis();
+  while (client.connected() && millis() - startTime < 5000) {
+    if (client.available()) {
+      String line = client.readStringUntil('\n');
+      Serial.println("Sheets response: " + line);
+    }
+  }
+  client.stop(); // Close connection
+  Serial.println("Data sent to Google Sheets: Current=" + String(rmsCurrent, 2) + " A, Voltage=" + String(voltage, 0) + " V, Power=" + String(power, 2) + " W, Interval=" + String(sheetInterval / 1000) + " s");
+}
+
+void connectToWiFi() {
+  WiFi.mode(WIFI_STA);
+  apMode = false;
+  wifiConnected = false;
+  WiFi.begin(strlen(storedSSID) > 0 ? storedSSID : defaultSSID,
+             strlen(storedSSID) > 0 ? storedPassword : defaultPassword);
+
+  Serial.print("Connecting to WiFi: " + String(storedSSID) + "...");
+  unsigned long startTime = millis();
+  while (millis() - startTime < 10000) {
+    if (WiFi.status() == WL_CONNECTED) {
+      wifiConnected = true;
+      client.setInsecure(); // Use for ESP8266 BearSSL
+      Serial.println("WiFi Connected. IP: " + WiFi.localIP().toString());
+      startWebServer();
+      return;
+    }
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("WiFi Failed. Starting AP");
+  startAccessPoint();
+}
+
+void startAccessPoint() {
+  WiFi.mode(WIFI_AP);
+  apMode = true;
+  wifiConnected = false;
+  WiFi.softAP("E_IOT", "00000000");
+  Serial.println("AP Started: E_IOT, IP: " + WiFi.softAPIP().toString());
+  startWebServer();
+}
+
+void startWebServer() {
+  server.on("/", handlePortal);
+  server.begin();
+  Serial.println("Web Server started at 192.168.4.1");
+}
+
+void handlePortal() {
+  if (server.method() == HTTP_POST) {
+    String ssid = server.arg("ssid");
+    String password = server.arg("password");
+    String currentStr = server.arg("current");
+    float knownCurrent = currentStr.toFloat();
+    String intervalStr = server.arg("interval");
+    unsigned long newInterval = intervalStr.toInt() * 1000; // Convert to milliseconds
+    String voltageStr = server.arg("voltage");
+    float newVoltage = voltageStr.toFloat();
+
+    // Validate inputs
+    if (newInterval > 0 && newInterval <= 3600000) { // Limit to 1 hour max
+      sheetInterval = newInterval;
+    }
+    if (newVoltage == 220.0 || newVoltage == 230.0 || newVoltage == 240.0 || newVoltage == 380.0 || newVoltage == 440.0) {
+      selectedVoltage = newVoltage;
+    }
+
+    strncpy(storedSSID, ssid.c_str(), sizeof(storedSSID));
+    strncpy(storedPassword, password.c_str(), sizeof(storedPassword));
+
+    if (currentStr.length() > 0) { // Only calibrate if current is entered
+      webCalibration = true;
+      calibrateSensor(knownCurrent);
+    }
+
+    // Save all data
+    saveWiFiCredentials();
+    saveSheetInterval();
+    saveSelectedVoltage();
+    Serial.println("Credentials, interval, and voltage saved to EEPROM");
+
+    // Force reboot after saving
+    server.send(200, "text/html", "<html><body><h1 style='color: #2c3e50; text-align: center;'>Settings Saved. Rebooting...</h1></body></html>");
+    Serial.println("Forcing reboot after settings saved...");
+    delay(100); // Allow response to send
+    ESP.restart(); // Immediate reboot
+  } else {
+    String html = R"rawliteral(
+      <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { font-family: Arial, sans-serif; background-color: #ecf0f1; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; height: 100vh; }
+          .container { background-color: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); width: 400px; text-align: center; }
+          h1 { color: #2c3e50; font-size: 24px; margin-bottom: 20px; }
+          input[type="text"], input[type="password"], input[type="number"], select { width: 80%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; }
+          input[type="range"] { width: 80%; margin: 10px 0; }
+          label { font-size: 16px; color: #34495e; }
+          button { background-color: #3498db; color: white; padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; font-size: 18px; margin: 5px; }
+          button:hover { background-color: #2980b9; }
+          .labels { display: flex; justify-content: space-between; width: 80%; margin: 0 auto 10px auto; font-size: 14px; color: #7f8c8d; }
+          .status { color: #27ae60; font-size: 16px; margin: 10px 0; }
+          @media (max-width: 480px) {
+            .container { width: 90%; padding: 15px; }
+            input[type="text"], input[type="password"], input[type="number"], select { font-size: 14px; }
+            button { font-size: 16px; padding: 10px 20px; }
+            label { font-size: 14px; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>Settings</h1>
+          <form method="POST">
+            <label for="ssid">SSID:</label><br>
+            <input type="text" name="ssid" placeholder="e.g., CoatsEmployee" value=")rawliteral" + String(storedSSID) + R"rawliteral(" required><br>
+            <label for="password">Password:</label><br>
+            <input type="password" name="password" placeholder="e.g., Coats@1234" value=")rawliteral" + String(storedPassword) + R"rawliteral(" required><br>
+            <label for="voltage">Voltage (V):</label><br>
+            <select name="voltage" required>
+              <option value="220" )rawliteral" + (selectedVoltage == 220.0 ? "selected" : "") + R"rawliteral(">220</option>
+              <option value="230" )rawliteral" + (selectedVoltage == 230.0 ? "selected" : "") + R"rawliteral(">230</option>
+              <option value="240" )rawliteral" + (selectedVoltage == 240.0 ? "selected" : "") + R"rawliteral(">240</option>
+              <option value="380" )rawliteral" + (selectedVoltage == 380.0 ? "selected" : "") + R"rawliteral(">380</option>
+              <option value="440" )rawliteral" + (selectedVoltage == 440.0 ? "selected" : "") + R"rawliteral(">440</option>
+            </select><br>
+            <label for="current">Calibrate Current (A):</label><br>
+            <input type="number" step="0.001" name="current" placeholder="e.g., 1.234" value=")rawliteral" + (calibCurrent != 0.0 ? String(calibCurrent) : "") + R"rawliteral("><br>
+            <label for="interval">Sheet Interval:</label><br>
+            <div class="labels">10s 60s 300s 900s 1800s 3600s</div>
+            <input type="range" name="interval" min="10" max="3600" value=")rawliteral" + String(sheetInterval / 1000) + R"rawliteral(" step="10" oninput="this.nextElementSibling.value=this.value"><output>)rawliteral" + String(sheetInterval / 1000) + R"rawliteral(</output>s<br>
+            <input type="hidden" name="action" value="confirm">
+            <button type="submit">Confirm</button>
+            <div class="status">
+              )rawliteral";
+    if (calibCurrent != 0.0) html += "Current: " + String(calibCurrent, 3) + " A, Vct: " + String(calibVct, 3) + " V";
+    html += R"rawliteral(
+            </div>
+          </form>
+        </div>
+      </body>
+      </html>
+    )rawliteral";
+    server.send(200, "text/html", html);
+  }
+}
+
+void saveWiFiCredentials() {
+  EEPROM.put(0, storedSSID);
+  EEPROM.put(32, storedPassword);
+  EEPROM.commit();
+  Serial.println("WiFi credentials saved to EEPROM");
+}
+
+void loadWiFiCredentials() {
+  EEPROM.get(0, storedSSID);
+  EEPROM.get(32, storedPassword);
+}
+
+void saveCalibrationFactor() {
+  EEPROM.put(96, calibrationFactor);
+  EEPROM.commit();
+  Serial.println("Calibration factor saved to EEPROM: " + String(calibrationFactor, 6));
+}
+
+void loadCalibrationFactor() {
+  EEPROM.get(96, calibrationFactor);
+  if (isnan(calibrationFactor) || calibrationFactor <= 0) {
+    calibrationFactor = 1.0;
+  }
+}
+
+void saveSheetInterval() {
+  EEPROM.put(100, sheetInterval);
+  EEPROM.commit();
+  Serial.println("Sheet interval saved to EEPROM: " + String(sheetInterval / 1000) + " s");
+}
+
+void loadSheetInterval() {
+  unsigned long tempInterval;
+  EEPROM.get(100, tempInterval);
+  if (tempInterval > 0 && tempInterval <= 3600000) { // Validate range (10s to 1hr)
+    sheetInterval = tempInterval;
+  } else {
+    sheetInterval = 10000; // Default to 10s if invalid
+  }
+}
+
+void saveCalibrationPoint() {
+  EEPROM.put(104, calibCurrent);
+  EEPROM.put(108, calibVct);
+  EEPROM.commit();
+  Serial.println("Calibration point saved: Current = " + String(calibCurrent, 3) + " A, Vct = " + String(calibVct, 3) + " V");
+}
+
+void loadCalibrationPoint() {
+  EEPROM.get(104, calibCurrent);
+  EEPROM.get(108, calibVct);
+}
+
+void saveSelectedVoltage() {
+  EEPROM.put(112, selectedVoltage);
+  EEPROM.commit();
+  Serial.println("Selected voltage saved to EEPROM: " + String(selectedVoltage, 0) + " V");
+}
+
+void loadSelectedVoltage() {
+  EEPROM.get(112, selectedVoltage);
+  if (selectedVoltage != 220.0 && selectedVoltage != 230.0 && selectedVoltage != 240.0 && 
+      selectedVoltage != 380.0 && selectedVoltage != 440.0) {
+    selectedVoltage = 220.0; // Default if invalid
+  }
+}
