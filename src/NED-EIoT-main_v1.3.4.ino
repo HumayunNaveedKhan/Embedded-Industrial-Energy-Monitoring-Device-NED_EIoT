@@ -1,3 +1,27 @@
+/**
+ * NED-EIoT — Industrial Energy & Equipment Health Monitor
+ * Firmware Version: 1.3.4
+ * 
+ * ESP8266-based firmware for real-time industrial energy 
+ * monitoring via CT sensors, EmonLib, EEPROM configuration,
+ * MQTT/HTTPS cloud push to Google Sheets, OTA updates,
+ * and a captive portal web interface for field calibration.
+ * 
+ * Hardware:  ESP8266 (NodeMCU) + Split-core CT Sensor
+ * Protocol:  HTTPS → Google Apps Script → Google Sheets
+ * 
+ * Author:    Humayun Khan
+ * Lab:       HHRCM Lab, NCRA-NEDUET, Karachi, Pakistan
+ * Patent:    IPO Pakistan Application No. 967/2025 (Under Review)
+ * 
+ * CONFIGURATION:
+ * Replace defaultSSID, defaultPassword, and GAS_ID
+ * with your own credentials before deployment.
+ * 
+ * © 2025 Humayun Khan, HHRCM Lab NCRA-NEDUET
+ * Patent pending. All rights reserved.
+ */
+
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>
 #include <EEPROM.h>
