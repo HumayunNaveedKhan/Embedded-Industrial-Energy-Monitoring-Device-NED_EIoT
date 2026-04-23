@@ -24,31 +24,30 @@ float calibVct = 0.0; // Measured Vct at the calibration point
 float selectedVoltage = 220.0;  // Default voltage
 
 // Wi-Fi Credentials
-const char* defaultSSID = "CoatsEmployee1";
-const char* defaultPassword = "Coats@1234";
+const char* defaultSSID = "SSID";
+const char* defaultPassword = "PW";
 
 // Google Sheets Configuration
 const char* host = "script.google.com";
 const int httpsPort = 443;
-const String GAS_ID = "AKfycbz4LYygRRuGgKTSxwGOLC8odN01S2gHexU7GlK4HMq8TGUtwFgLIj55UfOVmOe2Z3wZ"; // Replace with your Google Apps Script ID
-//https://docs.google.com/spreadsheets/d/1RNwZ5ZJtg5O_0CW5VqFAfYElLLl7QdNPKOW_1zgFLh4/edit?usp=sharing
+const String GAS_ID = "Replace with your Google Apps Script ID";
 
 // ADC and Current Sensor Configuration
 const int SENSOR_PIN = A0;  // ESP8266 ADC pin (A0)
 const float MAX_ADC = 1023.0;  // ESP8266 10-bit ADC
-const float VOLTAGE_REF = 3.3;  // NodeMCU ADC reference (0–3.3V)
+const float VOLTAGE_REF = ****;  
 const float VCT_NOISE_THRESHOLD = 0.005;  // Noise threshold for Vct (V)
-const int SAMPLES = 4000;  // Samples for calcIrms
-float calibration = 100.0;  // For 100A:1V CT with 100 ohms burden
+const int SAMPLES = ****;  // 
+float calibration = ****;  
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////100A1V
 // IIR Filter Configuration
-float filteredCurrent = 0.0;  // Initial filtered current
-const float alpha = 0.4;  // IIR smoothing factor (tuned for responsiveness)
-bool useFilter = false;  // Flag to enable filter post-calibration
+float filteredCurrent = ****;  // Initial filtered current
+const float alpha = ****;  // IIR smoothing factor (tuned for responsiveness)
+bool useFilter = ****;  // Flag to enable filter post-calibration
 
 // Reset Button Configuration
 const int RESET_BUTTON_PIN = 4;  // GPIO4 (D2 on NodeMCU)
-const unsigned long RESET_PRESS_DURATION = 5000;  // 5 seconds for long press
+const unsigned long RESET_PRESS_DURATION = ****; 
 unsigned long resetButtonPressStart = 0;
 bool resetButtonPressed = false;
 
@@ -105,7 +104,7 @@ void setup() {
   loadSelectedVoltage();
 
   // Initialize EmonLib
-  emon1.current(SENSOR_PIN, calibration); // CT on A0, calibration for 100A:1V CT
+  emon1.current(SENSOR_PIN, calibration); 
 
   // Validate credentials
   if (strlen(storedSSID) == 0) {
@@ -443,9 +442,9 @@ void handlePortal() {
           <h1>Settings</h1>
           <form method="POST">
             <label for="ssid">SSID:</label><br>
-            <input type="text" name="ssid" placeholder="e.g., CoatsEmployee" value=")rawliteral" + String(storedSSID) + R"rawliteral(" required><br>
+            <input type="text" name="ssid" placeholder="e.g., ****" value=")rawliteral" + String(storedSSID) + R"rawliteral(" required><br>
             <label for="password">Password:</label><br>
-            <input type="password" name="password" placeholder="e.g., Coats@1234" value=")rawliteral" + String(storedPassword) + R"rawliteral(" required><br>
+            <input type="password" name="password" placeholder="e.g., ****" value=")rawliteral" + String(storedPassword) + R"rawliteral(" required><br>
             <label for="voltage">Voltage (V):</label><br>
             <select name="voltage" required>
               <option value="220" )rawliteral" + (selectedVoltage == 220.0 ? "selected" : "") + R"rawliteral(">220</option>
