@@ -12,8 +12,8 @@ NED-EIoT is an indigenously designed and developed Industrial
 IoT device that provides real-time visibility into energy 
 consumption and equipment health across factory production lines.
 
-Developed at the Haptics, Human-Robotics & Condition Monitoring 
-Lab (HHRCM), NCRA-NEDUET.
+Developed at the Haptics, Human-Robotics & Condition Monitoring Lab (HHRCM), 
+NCRA-NEDUET under the mentorship of Prof. Dr. Riaz Uddin (Professor, Director NCRA & Director ORIC, NEDUET).
 
 **Status:** Live and operational at J&P Coats (MNC), Karachi  
 **Patent:** Filed — IPO Pakistan Application No. **967/2025**  
@@ -104,11 +104,11 @@ equipment-level cloud visibility across multiple production lines
 
 <img width="779" height="749" alt="EIOT-deployment-2" src="https://github.com/user-attachments/assets/9efa2d3d-5f91-4aae-bd5b-c1782554026b" />
 
-<img width="1848" height="862" alt="image" src="https://github.com/user-attachments/assets/d41c6c28-a6d7-44aa-8f58-8a5b89a74292" />
+<img width="1848" height="862" alt="NED-EIoT-GoogleSheets-Dashboard" src="https://github.com/user-attachments/assets/d41c6c28-a6d7-44aa-8f58-8a5b89a74292" />
 
-<img width="660" height="823" alt="image" src="https://github.com/user-attachments/assets/11c480af-a5d3-4750-9be0-38c01370ad85" />
+<img width="660" height="823" alt="NED-EIoT-Device-with-CT-Sensor" src="https://github.com/user-attachments/assets/11c480af-a5d3-4750-9be0-38c01370ad85" />
 
-<img width="1842" height="819" alt="image" src="https://github.com/user-attachments/assets/0d1b47ee-0d82-4a93-b3ad-a19198084a8d" />
+<img width="1842" height="819" alt="NED-EIoT-Lab-Testing-Data" src="https://github.com/user-attachments/assets/0d1b47ee-0d82-4a93-b3ad-a19198084a8d" />
 
 ---
 > 📌 Dashboard screenshots and real-time data shown in this 
