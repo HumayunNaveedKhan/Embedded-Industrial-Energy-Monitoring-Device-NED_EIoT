@@ -77,6 +77,18 @@ cloud-connected, real-time energy intelligence.
 
 ---
 
+## Source Code
+
+| File | Description |
+|---|---|
+| [`src/NED-EIoT-main_v1.3.4.ino`](src/NED-EIoT-main_v1.3.4.ino) | ESP8266 firmware — CT sensing, EmonLib, HTTPS push, OTA, captive portal |
+| [`src/NED-EIoT-AppScript_v1.4.2.gs`](src/NED-EIoT-AppScript_v1.4.2.gs) | Google Apps Script — data logging, dashboard, day/night analytics |
+
+> ⚠️ Replace `defaultSSID`, `defaultPassword`, `GAS_ID`, and `sheetId` 
+> with your own credentials before deployment.  
+> PCB design files and calibration constants are protected under 
+> IPO Pakistan Patent Application No. 967/2025.
+
 ## Deployment
 
 **Client:** J&P Coats (MNC) — Karachi, Pakistan  
@@ -99,7 +111,10 @@ equipment-level cloud visibility across multiple production lines
 <img width="1842" height="819" alt="image" src="https://github.com/user-attachments/assets/0d1b47ee-0d82-4a93-b3ad-a19198084a8d" />
 
 ---
-
+> 📌 Dashboard screenshots and real-time data shown in this 
+> repository are from lab testing at HHRCM Lab, NCRA-NEDUET. 
+> Production data from J&P Coats deployment is confidential 
+> and not included in this repository.
 
 ## Patent & IP
 
