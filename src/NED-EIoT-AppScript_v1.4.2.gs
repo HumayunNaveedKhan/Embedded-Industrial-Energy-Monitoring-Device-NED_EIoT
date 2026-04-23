@@ -1,4 +1,26 @@
-function doGet(e) {
+/**
+ * NED-EIoT — Google Sheets Dashboard AppScript
+ * Version: 1.4.2
+ * 
+ * Google Apps Script for receiving real-time energy data
+ * from NED-EIoT devices via HTTPS GET requests and logging
+ * to a structured Google Sheets dashboard with daily,
+ * weekly, monthly, and yearly consumption analytics,
+ * pie charts, column charts, and day/night breakdowns.
+ * 
+ * Endpoint: Deploy as Web App → Execute as Me → Anyone
+ * 
+ * Author:  Humayun Khan
+ * Lab:     HHRCM Lab, NCRA-NEDUET, Karachi, Pakistan
+ * Patent:  IPO Pakistan Application No. 967/2025 (Under Review)
+ * 
+ * CONFIGURATION:
+ * Replace sheetId with your own Google Sheets ID.
+ * 
+ * © 2025 Humayun Khan, HHRCM Lab NCRA-NEDUET
+ */
+ 
+ function doGet(e) {
   try {
     return logPowerData(e);
   } catch (error) {
